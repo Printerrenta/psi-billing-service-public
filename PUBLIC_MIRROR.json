@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "sourceRepository": "Printerrenta/psi-billing-service",
-  "sourceCommit": "a7268e8fc508baa4ccd3f6530bc594482ee5b15a",
+  "sourceCommit": "a185d501c619a90618564dbf0fe3ccf1aa669821",
   "sourceBranch": "main",
   "history": "Independent public snapshots; no private Git history",
   "files": [
@@ -15,7 +15,7 @@
     },
     {
       "path": ".github/workflows/verify.yml",
-      "sha256": "72a1759e388c4ff3796a9ae24140ad7b945c8a229cdb0ad1b61d8cc9115e206e"
+      "sha256": "da048381f11505306aa002e399176f040f9cd5365ca3b7e19789e3d5226745f8"
     },
     {
       "path": ".gitignore",
@@ -31,7 +31,7 @@
     },
     {
       "path": "README.md",
-      "sha256": "c5ef4b18e58350312468eaf20a18caa1e97ff788a84d9ff999fbd59a9472e2e9"
+      "sha256": "b944bb216b6c454f1ff2dd4db696997cb2fbfc4394c2f17dfc3c1a4e135abce8"
     },
     {
       "path": "mvnw",
