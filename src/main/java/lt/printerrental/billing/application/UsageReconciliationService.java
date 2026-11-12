@@ -38,9 +38,16 @@ public class UsageReconciliationService {
     var agreement = AccountingModel.agreement(snapshot);
     var history = AccountingModel.history(snapshot, readings.readings(snapshot.contractId()));
     for (var invoice : invoiceRows.issued(snapshot.contractId())) {
+      if (!invoice.kind().equals("MONTHLY")) continue;
       var month = YearMonth.from(invoice.period());
-      if (invoice.assessmentRevision() >= revision || !history.covers(month)) continue;
-      var assessed = calculator.calculate(agreement, month, history.forMonth(month, false));
+      if (invoice.assessmentRevision() >= revision) continue;
+      // Preserve the original calculation policy for immutable legacy invoices.
+      var reportedPolicy = invoice.calculation().lines().stream()
+          .anyMatch(l -> l.basis().equals("REPORTED_DELTA") || l.basis().equals("NO_NEW_READING"));
+      if (!reportedPolicy && !history.covers(month)) continue;
+      var assessed = reportedPolicy
+          ? calculator.calculateReported(agreement, month, history.reportedForMonth(month))
+          : calculator.calculate(agreement, month, history.forMonth(month, false));
       var net = assessed.usageNet().subtract(invoice.currentUsageNet());
       var vat = assessed.usageVat().subtract(invoice.currentUsageVat());
       if (net.signum() != 0 || vat.signum() != 0) {

@@ -10,6 +10,7 @@ public interface InvoiceStore {
   Optional<Invoice> invoice(UUID id);
 
   Optional<Invoice> monthly(UUID contract, LocalDate period);
+  Optional<Invoice> reconciliation(UUID contract);
 
   List<Invoice> issued(UUID contract);
 

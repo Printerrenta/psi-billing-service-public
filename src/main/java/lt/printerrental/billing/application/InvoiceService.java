@@ -101,6 +101,8 @@ public class InvoiceService {
     var locked = contracts.lock(contract);
     var s = locked.snapshot();
     if (s.status().equals("DRAFT")) throw new ApiProblem(409, "Draft contract is not billable");
+    if (kind.equals("RECONCILIATION") && !s.status().equals("COMPLETED"))
+      throw new ApiProblem(409, "Final reconciliation requires a completed contract");
     accounts.lockAccount(s.ownerSubject());
     var existing = existingInvoice(contract, requestKey, month, kind);
     if (existing.isPresent()) return existing.get();
@@ -133,13 +135,15 @@ public class InvoiceService {
     if (byKey.isPresent()) {
       var old = byKey.get();
       if (!old.contractId().equals(contract)
-          || !old.period().equals(month.atDay(1))
+          || kind.equals("MONTHLY") && !old.period().equals(month.atDay(1))
           || !old.kind().equals(kind)) throw new ApiProblem(409, "Invoice id reused");
       return Optional.of(old);
     }
     if (kind.equals("MONTHLY")) {
       var prior = invoiceRows.monthly(contract, month.atDay(1));
       if (prior.isPresent()) return prior;
+    } else if (kind.equals("RECONCILIATION")) {
+      return invoiceRows.reconciliation(contract);
     }
     return Optional.empty();
   }
@@ -201,9 +205,7 @@ public class InvoiceService {
       var end = month.atEndOfMonth().isBefore(s.endDate()) ? month.atEndOfMonth() : s.endDate();
       if (end.isAfter(today()) || end.equals(today()) && s.completedReadingDate() == null)
         throw new ApiProblem(409, "Billing period is not closed");
-      if (!history.covers(month) && today().isBefore(month.plusMonths(1).atDay(6)))
-        throw new ApiProblem(409, "Customer reading deadline has not passed");
-      calculation = calculator.calculate(agreement, month, history.forMonth(month, true));
+      calculation = calculator.calculateReported(agreement, month, history.reportedForMonth(month));
     } else {
       if (!s.endDate().isBefore(today()))
         throw new ApiProblem(409, "Use monthly invoices during the planned rental period");

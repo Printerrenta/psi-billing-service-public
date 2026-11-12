@@ -57,6 +57,10 @@ public class JdbcLedgerRepository
         .findFirst();
   }
 
+  public Optional<Invoice> reconciliation(UUID contract) {
+    return queryInvoices("contract_id=? AND kind='RECONCILIATION'", contract).stream().findFirst();
+  }
+
   public List<Invoice> issued(UUID contract) {
     return queryInvoices("contract_id=? AND kind='MONTHLY' ORDER BY period", contract);
   }

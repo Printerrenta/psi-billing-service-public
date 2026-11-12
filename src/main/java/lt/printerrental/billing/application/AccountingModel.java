@@ -31,9 +31,18 @@ public final class AccountingModel {
   public static UsageHistory history(
       ContractSnapshot snapshot, java.util.List<UsageHistory.Reading> readings) {
     var agreement = agreement(snapshot);
+    var observed = new java.util.ArrayList<>(readings);
+    // Completion carries an already accepted metering reading. Use it immediately if
+    // its outbox event has not arrived yet; a later accepted correction takes precedence.
+    if (snapshot.finalCounters() != null && snapshot.completedReadingDate() != null
+        && observed.stream().noneMatch(r -> r.asOf().equals(snapshot.completedReadingDate()))) {
+      observed.add(new UsageHistory.Reading(java.util.UUID.nameUUIDFromBytes(
+          (snapshot.contractId() + ":completion").getBytes(java.nio.charset.StandardCharsets.UTF_8)),
+          snapshot.completedReadingDate(), snapshot.finalCounters()));
+    }
     return new UsageHistory(
         agreement,
-        readings.stream()
+        observed.stream()
             .filter(
                 r ->
                     !r.asOf().isBefore(agreement.start())

@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "sourceRepository": "Printerrenta/psi-billing-service",
-  "sourceCommit": "a185d501c619a90618564dbf0fe3ccf1aa669821",
+  "sourceCommit": "a3d781d0d07635712aad1a9a14e9fd46e14a0a1b",
   "sourceBranch": "main",
   "history": "Independent public snapshots; no private Git history",
   "files": [
@@ -135,7 +135,7 @@
     },
     {
       "path": "src/main/java/lt/printerrental/billing/application/AccountingModel.java",
-      "sha256": "3a23fd6a402f87ea47f41782501ba5a460824b284195c7c136d3ed527bf62237"
+      "sha256": "8fdafb32745d013f7419ec5447fdda63ec1dea29281d6dd8846b65ac416e1f82"
     },
     {
       "path": "src/main/java/lt/printerrental/billing/application/BillingContractService.java",
@@ -147,7 +147,7 @@
     },
     {
       "path": "src/main/java/lt/printerrental/billing/application/InvoiceService.java",
-      "sha256": "153b5d3c5537565d4282768960fa2f88dbca24f2f4f2c0bdc0b6854ea6bb87e7"
+      "sha256": "512a26c1b41771a0cfc117bd8509a71b5c3ef577fa4c010344a0ad295ccd515f"
     },
     {
       "path": "src/main/java/lt/printerrental/billing/application/ReadingProjectionStore.java",
@@ -155,7 +155,7 @@
     },
     {
       "path": "src/main/java/lt/printerrental/billing/application/UsageReconciliationService.java",
-      "sha256": "e3169a29ac8949896ae9093c88bb5c81a52879939f3dadb75b432344319e9d64"
+      "sha256": "bc1d7376732784629988030c7786cf6d4f25962bdfe9109b43407557bbd8bd3b"
     },
     {
       "path": "src/main/java/lt/printerrental/billing/domain/AdjustmentAllocator.java",
@@ -167,7 +167,7 @@
     },
     {
       "path": "src/main/java/lt/printerrental/billing/domain/ChargeCalculator.java",
-      "sha256": "bc3206b1db6c7c406590d8df13dac6a2100ea89ad93b7d3a5baa2be6b6843344"
+      "sha256": "140fca52f2b6ffba9cd71af92ed4426ae8153645e58734d6a1be13b27d25ae38"
     },
     {
       "path": "src/main/java/lt/printerrental/billing/domain/Quantities.java",
@@ -175,7 +175,7 @@
     },
     {
       "path": "src/main/java/lt/printerrental/billing/domain/UsageHistory.java",
-      "sha256": "3f290fa635d45892e51a764d10d117c410134fd4031a0bfae49f1bb8fdf32c38"
+      "sha256": "81c899fd86b2065f7820f907a16fa88ea258c03278a5b2b6396565303b49167b"
     },
     {
       "path": "src/main/java/lt/printerrental/billing/persistence/JdbcReadingProjectionStore.java",
@@ -215,7 +215,7 @@
     },
     {
       "path": "src/main/java/lt/printerrental/integration/ContractSnapshot.java",
-      "sha256": "99dff83694638fd581c5b727e73871af4b112e3cdc160004e95c48e7ffa6da37"
+      "sha256": "70fa04c78ea8b53bae588c0355b11d750258a5197e838a4b8a6918d3a1beaabc"
     },
     {
       "path": "src/main/java/lt/printerrental/integration/ContractSnapshotStore.java",
@@ -291,7 +291,7 @@
     },
     {
       "path": "src/main/java/lt/printerrental/settlement/application/InvoiceStore.java",
-      "sha256": "0db69680e57128d779feaa74de8d35d5df98f03b8196d30643219a30791f7715"
+      "sha256": "43c1ecb576eb6367b9cbf902f77136cc447a4574f3efa0d7a2709852058219cd"
     },
     {
       "path": "src/main/java/lt/printerrental/settlement/application/LedgerRecords.java",
@@ -311,7 +311,7 @@
     },
     {
       "path": "src/main/java/lt/printerrental/settlement/persistence/JdbcLedgerRepository.java",
-      "sha256": "68063bb51af5f69827f7283a44ccf8fda1ba1157fbd3d42b93bd79b0fab4a00e"
+      "sha256": "8ef2b54d766d38a1c81d883239dc74d82fb7f0fa75049a2f47a4a6e2a53a97b7"
     },
     {
       "path": "src/main/java/lt/printerrental/transport/MetadataServiceCredentials.java",
@@ -354,6 +354,10 @@
       "sha256": "20cae097b1806e1adfea582ef915f58143d8fa6882a41e578f80f14976cf6184"
     },
     {
+      "path": "src/main/resources/db/migration/V4__one_final_reconciliation.sql",
+      "sha256": "fdf8c3521c9966f2bee82649e8bb581a94e18512797494586f9b1e2d6beef651"
+    },
+    {
       "path": "src/test/java/lt/printerrental/architecture/ServiceArchitectureTest.java",
       "sha256": "2e4ab337babb20daaca6469523989bd3bb7eae5941e43d2047bbe8946961ffe0"
     },
@@ -367,7 +371,11 @@
     },
     {
       "path": "src/test/java/lt/printerrental/billing/BillingIT.java",
-      "sha256": "80412db155617777da7dc2e9ad6ea9d27c98c420e7b1b34b257e8e97ead26dad"
+      "sha256": "d973805112ec152a44468c55878e40f424de891380780175a8115504dcdd07fb"
+    },
+    {
+      "path": "src/test/java/lt/printerrental/billing/application/InvoiceServiceTest.java",
+      "sha256": "b967514a409729eced1bc7986917b51e67044d25c2975608cf88d1139261e12b"
     },
     {
       "path": "src/test/java/lt/printerrental/billing/domain/AdjustmentAllocatorTest.java",
@@ -376,6 +384,10 @@
     {
       "path": "src/test/java/lt/printerrental/billing/domain/ChargeCalculatorTest.java",
       "sha256": "0b7025253d01c60ecb5536b9887be8124c352c693ca60b9bbebcaa2b1588c779"
+    },
+    {
+      "path": "src/test/java/lt/printerrental/billing/domain/ReportedUsageTest.java",
+      "sha256": "025e6301c3762806ce58cf80d4a8c1d6766d94e791c1f458a50ca48d6182f32b"
     },
     {
       "path": "src/test/java/lt/printerrental/messaging/OutboxDeliveryIT.java",
@@ -483,12 +495,15 @@
     "src/main/resources/db/migration/V1__integration.sql",
     "src/main/resources/db/migration/V2__billing_ledger.sql",
     "src/main/resources/db/migration/V3__outbox_delivery_leases.sql",
+    "src/main/resources/db/migration/V4__one_final_reconciliation.sql",
     "src/test/java/lt/printerrental/architecture/ServiceArchitectureTest.java",
     "src/test/java/lt/printerrental/auth/NeonJwtDecoderTest.java",
     "src/test/java/lt/printerrental/auth/UserJwtAuthenticationConverterTest.java",
     "src/test/java/lt/printerrental/billing/BillingIT.java",
+    "src/test/java/lt/printerrental/billing/application/InvoiceServiceTest.java",
     "src/test/java/lt/printerrental/billing/domain/AdjustmentAllocatorTest.java",
     "src/test/java/lt/printerrental/billing/domain/ChargeCalculatorTest.java",
+    "src/test/java/lt/printerrental/billing/domain/ReportedUsageTest.java",
     "src/test/java/lt/printerrental/messaging/OutboxDeliveryIT.java",
     "src/test/java/lt/printerrental/neon/NeonEnvironmentPostProcessorTest.java",
     "src/test/java/lt/printerrental/settlement/domain/PaymentAllocatorTest.java",

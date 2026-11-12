@@ -167,7 +167,7 @@ class BillingIT {
   @Test
   void missingHistoryBillsFixedOnlyAndObservedUsageIsReconciledOnNewInvoice() {
     var january = issue(1);
-    assertThat(january.invoice().calculation().preliminary()).isTrue();
+    assertThat(january.invoice().calculation().preliminary()).isFalse();
     assertThat(january.invoice().amountDue()).isEqualByComparingTo("37.51");
     reading(LocalDate.of(2026, 1, 31), 1000, 1);
     assertThat(payments.balance("alice").unbilledDebit()).isEqualByComparingTo("12.10");
@@ -180,20 +180,71 @@ class BillingIT {
   }
 
   @Test
-  void overestimatedPagesProduceCarryForwardCreditNotFakeCash() {
+  void finalReconciliationIsUniqueAcrossConcurrentOperatorsAndRetryMonths() throws Exception {
+    projections.receive(new ContractSnapshot(source.contractId(), source.printerId(), source.ownerSubject(),
+        source.modelKey(), source.colorCapable(), source.a3Capable(), "COMPLETED", source.startDate(),
+        source.endDate(), source.endDate(), source.baselineDate(), source.baseline(), 2L, source.terms()));
+    var pool = java.util.concurrent.Executors.newFixedThreadPool(2);
+    UUID key = UUID.randomUUID();
+    try {
+      java.util.concurrent.Callable<UUID> operation = () -> {
+        as("employee", "EMPLOYEE");
+        try { return invoices.settle(contract, UUID.randomUUID()).invoice().id(); }
+        finally { SecurityContextHolder.clearContext(); }
+      };
+      var first = pool.submit(operation);
+      var second = pool.submit(operation);
+      key = first.get(20, java.util.concurrent.TimeUnit.SECONDS);
+      assertThat(second.get(20, java.util.concurrent.TimeUnit.SECONDS)).isEqualTo(key);
+    } finally { pool.shutdownNow(); }
+    Time.now = Instant.parse("2026-05-06T12:00:00Z");
+    assertThat(invoices.settle(contract, key).invoice().id()).isEqualTo(key);
+    assertThat(invoices.settle(contract, UUID.randomUUID()).invoice().id()).isEqualTo(key);
+    assertThat(db.queryForObject("SELECT count(*) FROM billing.invoices WHERE contract_id=? AND kind='RECONCILIATION'", Long.class, contract)).isEqualTo(1L);
+    assertThatThrownBy(() -> db.update("INSERT INTO billing.invoices SELECT ?,owner_subject,contract_id,period,kind,issued_on,due_on,calculation,amount_due,credit_applied,debit_applied,current_usage_net,current_usage_vat,assessment_revision,actor,created_at FROM billing.invoices WHERE contract_id=?", UUID.randomUUID(), contract))
+        .isInstanceOf(org.springframework.dao.DuplicateKeyException.class);
+  }
+
+  @Test
+  void activeContractCannotBeFinallyReconciled() {
+    assertThatThrownBy(() -> invoices.settle(contract, UUID.randomUUID()))
+        .isInstanceOf(lt.printerrental.api.ApiProblem.class)
+        .hasMessageContaining("completed contract");
+    assertThat(db.queryForObject("SELECT count(*) FROM billing.invoices", Long.class)).isZero();
+  }
+
+  @Test
+  void completionCountersAreBilledBeforeTheirEventAndNeverChargedTwice() {
+    var counts = List.of(100L, 0L, 30L, 0L);
+    projections.receive(new ContractSnapshot(source.contractId(), source.printerId(), source.ownerSubject(),
+        source.modelKey(), source.colorCapable(), source.a3Capable(), "COMPLETED", source.startDate(),
+        source.endDate(), source.endDate(), source.baselineDate(), source.baseline(), 2L, source.terms(), counts));
+    var march = issue(3);
+    // 100 A4 + 30 A3 * 2, at EUR 0.01; no metering event has arrived yet.
+    assertThat(march.invoice().calculation().usageNet()).isEqualByComparingTo("1.60");
+    var finalInvoice = invoices.settle(contract, UUID.randomUUID());
+    inbox.accept(new lt.printerrental.events.DomainEvent(UUID.randomUUID(), 1, "MeterReadingAccepted",
+        Time.now, contract, "alice", Map.of("readingId", UUID.randomUUID().toString(),
+        "asOf", source.endDate().toString(), "counters", counts, "streamRevision", 1)));
+    assertThat(invoices.view(march.invoice().id()).invoice().calculation().usageNet()).isEqualByComparingTo("1.60");
+    assertThat(payments.balance("alice").unbilledDebit()).isZero();
+    assertThat(invoices.settle(contract, UUID.randomUUID()).invoice().id()).isEqualTo(finalInvoice.invoice().id());
+  }
+
+  @Test
+  void missingReadingsAreNotForecastAndLaterActualDeltaIsChargedOnce() {
     reading(LocalDate.of(2026, 1, 31), 31000, 1);
     issue(1);
     var february = issue(2);
     reading(LocalDate.of(2026, 3, 31), 31001, 2);
     var before = payments.balance("alice");
-    assertThat(before.correctionCredit()).isEqualByComparingTo("338.80");
+    assertThat(before.correctionCredit()).isZero();
     assertThat(before.received()).isZero();
     var march = issue(3);
-    assertThat(march.invoice().amountDue()).isZero();
-    assertThat(march.status()).isEqualTo("NO_PAYMENT_DUE");
-    assertThat(payments.balance("alice").correctionCredit()).isEqualByComparingTo("301.28");
+    assertThat(march.invoice().amountDue()).isEqualByComparingTo("37.52");
+    assertThat(payments.balance("alice").correctionCredit()).isZero();
     assertThat(invoices.view(february.invoice().id()).invoice().calculation().usageNet())
-        .isEqualByComparingTo("280.00");
+        .isZero();
   }
 
   @Test

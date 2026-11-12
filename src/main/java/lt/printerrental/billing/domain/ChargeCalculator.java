@@ -137,6 +137,35 @@ public final class ChargeCalculator {
         basis);
   }
 
+  /** Bill each actual counter delta in its reporting month while preserving the
+   * historical day-based tariff split across the entire observed usage interval. */
+  public Calculation calculateReported(Agreement agreement, YearMonth month, List<UsageHistory.Interval> reported) {
+    var lines = new ArrayList<>(calculate(agreement, month, List.of()).lines());
+    String[] categories = {"A4_MONO", "A4_COLOR", "A3_MONO", "A3_COLOR"};
+    for (var interval : reported) {
+      if (!YearMonth.from(interval.to()).equals(month) && !interval.basis().equals("NO_NEW_READING"))
+        throw new IllegalArgumentException("Reported delta belongs to another invoice month");
+      for (int t = 0; t < agreement.terms().size(); t++) {
+        var terms = agreement.terms().get(t);
+        var termsEnd = t + 1 < agreement.terms().size() ? agreement.terms().get(t + 1).from().minusDays(1) : agreement.end();
+        var from = max(interval.from(), terms.from());
+        var to = min(interval.to(), termsEnd);
+        if (from.isAfter(to)) continue;
+        var quantities = interval.quantities().fraction(days(from, to), interval.days());
+        for (int c = 0; c < 4; c++) {
+          var quantity = quantities.values().get(c);
+          lines.add(line("USAGE", categories[c], terms, from, to, quantity, terms.price(c), quantity.multiply(terms.price(c)), interval.basis()));
+        }
+      }
+    }
+    var net = BigDecimal.ZERO; var vat = BigDecimal.ZERO; var usageNet = BigDecimal.ZERO; var usageVat = BigDecimal.ZERO;
+    for (var line : lines) {
+      net = net.add(line.net()); vat = vat.add(line.vat());
+      if (line.kind().equals("USAGE")) { usageNet = usageNet.add(line.net()); usageVat = usageVat.add(line.vat()); }
+    }
+    return new Calculation(lines, money(net), money(vat), money(net.add(vat)), money(usageNet), money(usageVat), false);
+  }
+
   public static BigDecimal money(BigDecimal n) {
     return n.setScale(2, RoundingMode.HALF_UP);
   }

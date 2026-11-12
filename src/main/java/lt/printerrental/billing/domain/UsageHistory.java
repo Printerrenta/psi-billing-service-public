@@ -85,6 +85,21 @@ public final class UsageHistory {
         || intervals.stream().anyMatch(i -> !i.to().isBefore(end));
   }
 
+  /** Actual counters are charged once, in the month in which they were observed.
+   * Gaps stay unbilled until a later reading arrives; no interpolation or forecast. */
+  public List<Interval> reportedForMonth(YearMonth month) {
+    var start = max(month.atDay(1), agreement.start());
+    var end = min(month.atEndOfMonth(), agreement.usageEnd());
+    if (start.isAfter(end)) return List.of();
+    var reported = intervals.stream()
+        .filter(i -> !i.to().isBefore(start) && !i.to().isAfter(end))
+        .map(i -> new Interval(i.from(), i.to(), i.quantities(), "REPORTED_DELTA"))
+        .toList();
+    return reported.isEmpty()
+        ? List.of(new Interval(start, end, Quantities.zero(), "NO_NEW_READING"))
+        : reported;
+  }
+
   private Optional<Interval> lastFullActualBefore(YearMonth month) {
     return intervals.stream()
         .filter(
