@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "sourceRepository": "Printerrenta/psi-billing-service",
-  "sourceCommit": "a3d781d0d07635712aad1a9a14e9fd46e14a0a1b",
+  "sourceCommit": "ff80d444fb77988001fe5d62eed7f364bbba29d8",
   "sourceBranch": "main",
   "history": "Independent public snapshots; no private Git history",
   "files": [
@@ -31,7 +31,7 @@
     },
     {
       "path": "README.md",
-      "sha256": "b944bb216b6c454f1ff2dd4db696997cb2fbfc4394c2f17dfc3c1a4e135abce8"
+      "sha256": "61a44e4cb6a49e26eb06bbcce4adce321bce5b66d2af3a4f2339db71ee4d5f97"
     },
     {
       "path": "mvnw",
