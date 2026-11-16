@@ -8,6 +8,17 @@ have separate PostgreSQL databases and restricted credentials; the gateway has n
 Controllers delegate use cases, domain objects enforce invariants, and HTTP/JDBC/JPA
 adapters implement local ports. Business models and SQL are not shared between services.
 
+## Accounting workflows
+
+- New monthly invoices charge accepted actual usage. Without a new reading,
+  they contain the fixed rental fee; later readings account for unbilled usage.
+- Issuing invoices and final reconciliation uses request keys for safe retries.
+  A contract may have only one final reconciliation document.
+- Payments cover debts and retain excess as an advance. Payment reversal,
+  adjustments and allocation history remain auditable server-side operations.
+- Registering a payment records received funds; it does not initiate a bank
+  transfer or provide a payment-provider integration.
+
 ## Build and test
 
 ```sh
