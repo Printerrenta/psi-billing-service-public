@@ -498,4 +498,53 @@ class BillingIT {
             org.springframework.test.web.servlet.result.MockMvcResultMatchers.status()
                 .isForbidden());
   }
+
+  @Test
+  void invoiceListBatchesPaidAndAdjustmentsCorrectly() {
+    var jan = issue(1);
+    reading(LocalDate.of(2026, 1, 31), 1000, 1);
+    var feb = issue(2);
+    payments.register(
+        new lt.printerrental.settlement.application.SettlementService.Register(
+            UUID.randomUUID(),
+            "alice",
+            new BigDecimal("40.00"),
+            LocalDate.of(2026, 4, 1),
+            "bank-ref-batch"));
+
+    var views = invoices.list("alice", 0, 20);
+    assertThat(views).hasSize(2);
+    var byId =
+        views.stream()
+            .collect(java.util.stream.Collectors.toMap(v -> v.invoice().id(), v -> v));
+    assertThat(byId.get(jan.invoice().id()).status()).isEqualTo("PAID");
+    assertThat(byId.get(jan.invoice().id()).outstanding()).isZero();
+    assertThat(byId.get(jan.invoice().id()).adjustments()).isEmpty();
+    assertThat(byId.get(feb.invoice().id()).status()).isEqualTo("PARTIALLY_PAID");
+    assertThat(byId.get(feb.invoice().id()).paid()).isEqualByComparingTo("2.49");
+    assertThat(byId.get(feb.invoice().id()).adjustments()).hasSize(1);
+  }
+
+  @Test
+  void outOfOrderReadingIsDeferredAndReconciledAfterCorrection() {
+    reading(LocalDate.of(2026, 1, 31), 1500, 1);
+    reading(LocalDate.of(2026, 2, 28), 1000, 3);
+    assertThat(
+            db.queryForObject(
+                "SELECT count(*) FROM billing.inbox_events WHERE processed_at IS NULL", Long.class))
+        .isEqualTo(1);
+    assertThat(
+            db.queryForObject("SELECT count(*) FROM billing.reading_projections", Long.class))
+        .isEqualTo(1);
+
+    reading(LocalDate.of(2026, 1, 31), 800, 2);
+    inbox.retryPending();
+    assertThat(
+            db.queryForObject(
+                "SELECT count(*) FROM billing.inbox_events WHERE processed_at IS NULL", Long.class))
+        .isZero();
+    assertThat(
+            db.queryForObject("SELECT count(*) FROM billing.reading_projections", Long.class))
+        .isEqualTo(2);
+  }
 }

@@ -234,12 +234,31 @@ public class InvoiceService {
     access.owner(owner);
     if (page < 0 || page > 1000000 || size < 1 || size > 100)
       throw new IllegalArgumentException("Invalid pagination");
-    return invoiceRows.invoices(owner, page, size).stream().map(this::display).toList();
+    var pageInvoices = invoiceRows.invoices(owner, page, size);
+    if (pageInvoices.isEmpty()) return List.of();
+    var ids = pageInvoices.stream().map(LedgerRecords.Invoice::id).toList();
+    var allocated = invoiceRows.allocatedByInvoice(ids);
+    var applied = invoiceRows.appliedAdjustmentsByInvoice(ids);
+    return pageInvoices.stream()
+        .map(
+            i ->
+                display(
+                    i,
+                    allocated.getOrDefault(i.id(), BigDecimal.ZERO),
+                    applied.getOrDefault(i.id(), List.of())))
+        .toList();
   }
 
   private View display(LedgerRecords.Invoice i) {
-    var paid = invoiceRows.allocated(i.id());
-    var due = i.amountDue().subtract(paid);
+    return display(i, invoiceRows.allocated(i.id()), invoiceRows.appliedAdjustments(i.id()));
+  }
+
+  private View display(
+      LedgerRecords.Invoice i,
+      BigDecimal paid,
+      List<LedgerRecords.AppliedAdjustment> appliedAdjustments) {
+    var safePaid = paid == null ? BigDecimal.ZERO : paid;
+    var due = i.amountDue().subtract(safePaid);
     var status =
         i.amountDue().signum() == 0
             ? "NO_PAYMENT_DUE"
@@ -247,8 +266,9 @@ public class InvoiceService {
                 ? "PAID"
                 : i.dueOn().isBefore(today())
                     ? "OVERDUE"
-                    : paid.signum() > 0 ? "PARTIALLY_PAID" : "UNPAID";
-    return new View(i, paid, due, status, invoiceRows.appliedAdjustments(i.id()));
+                    : safePaid.signum() > 0 ? "PARTIALLY_PAID" : "UNPAID";
+    return new View(
+        i, safePaid, due, status, appliedAdjustments == null ? List.of() : appliedAdjustments);
   }
 
   private LocalDate today() {

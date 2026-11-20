@@ -10,8 +10,17 @@ public class ApiExceptionHandler {
     return ProblemDetail.forStatusAndDetail(HttpStatusCode.valueOf(e.status()), e.getMessage());
   }
 
+  @ExceptionHandler(IllegalArgumentException.class)
+  ProblemDetail illegalArgument(IllegalArgumentException e) {
+    var message = e.getMessage();
+    var detail =
+        message != null && !message.isBlank() && message.length() <= 300
+            ? message
+            : "Invalid request or domain values";
+    return ProblemDetail.forStatusAndDetail(HttpStatus.BAD_REQUEST, detail);
+  }
+
   @ExceptionHandler({
-    IllegalArgumentException.class,
     org.springframework.http.converter.HttpMessageNotReadableException.class,
     org.springframework.web.bind.MethodArgumentNotValidException.class,
     org.springframework.web.method.annotation.MethodArgumentTypeMismatchException.class

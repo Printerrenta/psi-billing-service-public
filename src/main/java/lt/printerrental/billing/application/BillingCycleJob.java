@@ -5,6 +5,8 @@ import java.util.*;
 import lt.printerrental.api.ApiProblem;
 import lt.printerrental.integration.ContractSnapshotStore;
 import lt.printerrental.settlement.application.*;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 @Component
@@ -13,21 +15,32 @@ public class BillingCycleJob {
   private final InvoiceStore invoiceRows;
   private final InvoiceService invoices;
   private final Clock clock;
+  private final ZoneId businessZone;
 
   public BillingCycleJob(
       ContractSnapshotStore contracts,
       InvoiceStore invoiceRows,
       InvoiceService invoices,
       Clock clock) {
+    this(contracts, invoiceRows, invoices, clock, "Europe/Vilnius");
+  }
+
+  @Autowired
+  public BillingCycleJob(
+      ContractSnapshotStore contracts,
+      InvoiceStore invoiceRows,
+      InvoiceService invoices,
+      Clock clock,
+      @Value("${app.business-zone:Europe/Vilnius}") String businessZone) {
     this.contracts = contracts;
     this.invoiceRows = invoiceRows;
-
     this.invoices = invoices;
     this.clock = clock;
+    this.businessZone = ZoneId.of(businessZone);
   }
 
   public int closeReady() {
-    var today = LocalDate.now(clock.withZone(ZoneId.of("Europe/Vilnius")));
+    var today = LocalDate.now(clock.withZone(businessZone));
     int created = 0;
     for (var id : contracts.ids()) {
       var s = contracts.find(id).orElseThrow();

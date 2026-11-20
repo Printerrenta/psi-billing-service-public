@@ -2,12 +2,15 @@ package lt.printerrental.settlement.persistence;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.math.BigDecimal;
+import java.sql.PreparedStatement;
 import java.time.*;
 import java.util.*;
 import lt.printerrental.billing.domain.ChargeCalculator;
 import lt.printerrental.settlement.application.*;
 import lt.printerrental.settlement.application.LedgerRecords.*;
 import lt.printerrental.settlement.domain.PaymentAllocator;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Repository;
 
@@ -16,26 +19,41 @@ public class JdbcLedgerRepository
     implements InvoiceStore, AdjustmentStore, PaymentStore, AccountStore {
   private final JdbcTemplate db;
   private final ObjectMapper json;
+  private final String schema;
 
   public JdbcLedgerRepository(JdbcTemplate db, ObjectMapper json) {
+    this(db, json, "billing");
+  }
+
+  @Autowired
+  public JdbcLedgerRepository(
+      JdbcTemplate db, ObjectMapper json, @Value("${DB_SCHEMA:billing}") String schema) {
+    if (schema == null || !schema.matches("[a-z][a-z0-9_]*"))
+      throw new IllegalArgumentException("Invalid schema");
     this.db = db;
     this.json = json;
+    this.schema = schema;
+  }
+
+  private String table(String name) {
+    return schema + "." + name;
   }
 
   public long lockAccount(String owner) {
     db.update(
-        "INSERT INTO billing.customer_accounts(owner_subject) VALUES(?) ON CONFLICT DO NOTHING",
+        "INSERT INTO " + table("customer_accounts") + "(owner_subject) VALUES(?) ON CONFLICT DO NOTHING",
         owner);
     return db.queryForObject(
-        "SELECT revision FROM billing.customer_accounts WHERE owner_subject=? FOR UPDATE",
+        "SELECT revision FROM " + table("customer_accounts") + " WHERE owner_subject=? FOR UPDATE",
         Long.class,
         owner);
   }
 
   public long bumpAccount(String owner) {
     return db.queryForObject(
-        "UPDATE billing.customer_accounts SET revision=revision+1 WHERE owner_subject=? RETURNING"
-            + " revision",
+        "UPDATE "
+            + table("customer_accounts")
+            + " SET revision=revision+1 WHERE owner_subject=? RETURNING revision",
         Long.class,
         owner);
   }
@@ -43,7 +61,7 @@ public class JdbcLedgerRepository
   public boolean knownOwner(String owner) {
     return Boolean.TRUE.equals(
         db.queryForObject(
-            "SELECT EXISTS(SELECT 1 FROM billing.contracts WHERE owner_subject=?)",
+            "SELECT EXISTS(SELECT 1 FROM " + table("contracts") + " WHERE owner_subject=?)",
             Boolean.class,
             owner));
   }
@@ -75,8 +93,9 @@ public class JdbcLedgerRepository
 
   public void insert(Invoice i) {
     db.update(
-        "INSERT INTO"
-            + " billing.invoices(id,owner_subject,contract_id,period,kind,issued_on,due_on,calculation,amount_due,credit_applied,debit_applied,current_usage_net,current_usage_vat,assessment_revision,actor)"
+        "INSERT INTO "
+            + table("invoices")
+            + "(id,owner_subject,contract_id,period,kind,issued_on,due_on,calculation,amount_due,credit_applied,debit_applied,current_usage_net,current_usage_vat,assessment_revision,actor)"
             + " VALUES(?,?,?,?,?,?,?,?::jsonb,?,?,?,?,?,?,?)",
         i.id(),
         i.owner(),
@@ -94,8 +113,9 @@ public class JdbcLedgerRepository
         i.assessmentRevision(),
         i.actor());
     db.update(
-        "INSERT INTO billing.invoice_usage_assessments(invoice_id,usage_net,usage_vat,revision)"
-            + " VALUES(?,?,?,?)",
+        "INSERT INTO "
+            + table("invoice_usage_assessments")
+            + "(invoice_id,usage_net,usage_vat,revision) VALUES(?,?,?,?)",
         i.id(),
         i.currentUsageNet(),
         i.currentUsageVat(),
@@ -104,8 +124,9 @@ public class JdbcLedgerRepository
 
   public void reassessed(UUID invoice, BigDecimal net, BigDecimal vat, long revision) {
     db.update(
-        "UPDATE billing.invoice_usage_assessments SET usage_net=?,usage_vat=?,revision=? WHERE"
-            + " invoice_id=?",
+        "UPDATE "
+            + table("invoice_usage_assessments")
+            + " SET usage_net=?,usage_vat=?,revision=? WHERE invoice_id=?",
         net,
         vat,
         revision,
@@ -114,8 +135,9 @@ public class JdbcLedgerRepository
 
   public List<Adjustment> adjustments(String owner) {
     return db.query(
-        "SELECT * FROM billing.usage_adjustments WHERE owner_subject=? AND remaining_gross<>0 ORDER"
-            + " BY created_at,id",
+        "SELECT * FROM "
+            + table("usage_adjustments")
+            + " WHERE owner_subject=? AND remaining_gross<>0 ORDER BY created_at,id",
         (r, n) ->
             new Adjustment(
                 r.getObject("id", UUID.class),
@@ -130,8 +152,9 @@ public class JdbcLedgerRepository
 
   public void adjustment(Adjustment a) {
     db.update(
-        "INSERT INTO"
-            + " billing.usage_adjustments(id,owner_subject,source_invoice,source_revision,net_delta,vat_delta,remaining_gross)"
+        "INSERT INTO "
+            + table("usage_adjustments")
+            + "(id,owner_subject,source_invoice,source_revision,net_delta,vat_delta,remaining_gross)"
             + " VALUES(?,?,?,?,?,?,?)",
         a.id(),
         a.owner(),
@@ -144,13 +167,16 @@ public class JdbcLedgerRepository
 
   public void applied(UUID invoice, UUID adjustment, BigDecimal gross, BigDecimal remaining) {
     db.update(
-        "INSERT INTO billing.invoice_adjustments(invoice_id,adjustment_id,gross_applied)"
-            + " VALUES(?,?,?)",
+        "INSERT INTO "
+            + table("invoice_adjustments")
+            + "(invoice_id,adjustment_id,gross_applied) VALUES(?,?,?)",
         invoice,
         adjustment,
         gross);
     db.update(
-        "UPDATE billing.usage_adjustments SET remaining_gross=? WHERE id=?", remaining, adjustment);
+        "UPDATE " + table("usage_adjustments") + " SET remaining_gross=? WHERE id=?",
+        remaining,
+        adjustment);
   }
 
   public Optional<Payment> payment(UUID id) {
@@ -159,8 +185,9 @@ public class JdbcLedgerRepository
 
   public void payment(Payment p) {
     db.update(
-        "INSERT INTO billing.payments(id,owner_subject,amount,received_on,reference,actor)"
-            + " VALUES(?,?,?,?,?,?)",
+        "INSERT INTO "
+            + table("payments")
+            + "(id,owner_subject,amount,received_on,reference,actor) VALUES(?,?,?,?,?,?)",
         p.id(),
         p.owner(),
         p.amount(),
@@ -171,8 +198,9 @@ public class JdbcLedgerRepository
 
   public void reverse(UUID id, UUID key, String actor, String reason) {
     db.update(
-        "UPDATE billing.payments SET"
-            + " reversed_at=now(),reversal_key=?,reversed_by=?,reversal_reason=? WHERE id=?",
+        "UPDATE "
+            + table("payments")
+            + " SET reversed_at=now(),reversal_key=?,reversed_by=?,reversal_reason=? WHERE id=?",
         key,
         actor,
         reason,
@@ -189,8 +217,9 @@ public class JdbcLedgerRepository
 
   public List<PaymentAllocator.Payment> activePayments(String owner) {
     return db.query(
-        "SELECT id,received_on,amount FROM billing.payments WHERE owner_subject=? AND reversed_at"
-            + " IS NULL ORDER BY received_on,id",
+        "SELECT id,received_on,amount FROM "
+            + table("payments")
+            + " WHERE owner_subject=? AND reversed_at IS NULL ORDER BY received_on,id",
         (r, n) ->
             new PaymentAllocator.Payment(
                 r.getObject(1, UUID.class), r.getObject(2, LocalDate.class), r.getBigDecimal(3)),
@@ -199,8 +228,9 @@ public class JdbcLedgerRepository
 
   public List<PaymentAllocator.Debt> debts(String owner) {
     return db.query(
-        "SELECT id,due_on,issued_on,period,amount_due FROM billing.invoices WHERE owner_subject=?"
-            + " ORDER BY due_on,issued_on,id",
+        "SELECT id,due_on,issued_on,period,amount_due FROM "
+            + table("invoices")
+            + " WHERE owner_subject=? ORDER BY due_on,issued_on,id",
         (r, n) ->
             new PaymentAllocator.Debt(
                 r.getObject(1, UUID.class),
@@ -214,13 +244,17 @@ public class JdbcLedgerRepository
   public void allocations(
       String owner, List<PaymentAllocator.Allocation> allocations, long generation) {
     db.update(
-        "UPDATE billing.payment_allocations SET reversed_at=now() WHERE reversed_at IS NULL AND"
-            + " invoice_id IN (SELECT id FROM billing.invoices WHERE owner_subject=?)",
+        "UPDATE "
+            + table("payment_allocations")
+            + " SET reversed_at=now() WHERE reversed_at IS NULL AND invoice_id IN (SELECT id FROM "
+            + table("invoices")
+            + " WHERE owner_subject=?)",
         owner);
     for (var a : allocations)
       db.update(
-          "INSERT INTO billing.payment_allocations(id,payment_id,invoice_id,amount,generation)"
-              + " VALUES(?,?,?,?,?)",
+          "INSERT INTO "
+              + table("payment_allocations")
+              + "(id,payment_id,invoice_id,amount,generation) VALUES(?,?,?,?,?)",
           UUID.randomUUID(),
           a.paymentId(),
           a.invoiceId(),
@@ -230,50 +264,77 @@ public class JdbcLedgerRepository
 
   public BigDecimal allocated(UUID id) {
     return db.queryForObject(
-        "SELECT COALESCE(sum(amount),0) FROM billing.payment_allocations WHERE invoice_id=? AND"
-            + " reversed_at IS NULL",
+        "SELECT COALESCE(sum(amount),0) FROM "
+            + table("payment_allocations")
+            + " WHERE invoice_id=? AND reversed_at IS NULL",
         BigDecimal.class,
         id);
+  }
+
+  public Map<UUID, BigDecimal> allocatedByInvoice(Collection<UUID> invoices) {
+    if (invoices == null || invoices.isEmpty()) return Map.of();
+    var ids = invoices.toArray(UUID[]::new);
+    var totals = new HashMap<UUID, BigDecimal>();
+    for (var id : ids) totals.put(id, BigDecimal.ZERO);
+    db.query(
+        "SELECT invoice_id,COALESCE(sum(amount),0) FROM "
+            + table("payment_allocations")
+            + " WHERE invoice_id = ANY(?) AND reversed_at IS NULL GROUP BY invoice_id",
+        (PreparedStatement ps) -> ps.setArray(1, ps.getConnection().createArrayOf("uuid", ids)),
+        (rs, n) -> {
+          totals.put(rs.getObject(1, UUID.class), rs.getBigDecimal(2));
+          return null;
+        });
+    return totals;
   }
 
   public Summary summary(String owner, LocalDate today) {
     var invoiced =
         sum(
-            "SELECT COALESCE(sum(amount_due),0) FROM billing.invoices WHERE owner_subject=?",
+            "SELECT COALESCE(sum(amount_due),0) FROM "
+                + table("invoices")
+                + " WHERE owner_subject=?",
             owner);
     var paid =
         sum(
-            "SELECT COALESCE(sum(a.amount),0) FROM billing.payment_allocations a JOIN"
-                + " billing.invoices i ON i.id=a.invoice_id WHERE i.owner_subject=? AND"
-                + " a.reversed_at IS NULL",
+            "SELECT COALESCE(sum(a.amount),0) FROM "
+                + table("payment_allocations")
+                + " a JOIN "
+                + table("invoices")
+                + " i ON i.id=a.invoice_id WHERE i.owner_subject=? AND a.reversed_at IS NULL",
             owner);
     var received =
         sum(
-            "SELECT COALESCE(sum(amount),0) FROM billing.payments WHERE owner_subject=? AND"
-                + " reversed_at IS NULL",
+            "SELECT COALESCE(sum(amount),0) FROM "
+                + table("payments")
+                + " WHERE owner_subject=? AND reversed_at IS NULL",
             owner);
     var overdue =
         sum(
-            "SELECT COALESCE(sum(i.amount_due-COALESCE(p.paid,0)),0) FROM billing.invoices i LEFT"
-                + " JOIN (SELECT invoice_id,sum(amount) paid FROM billing.payment_allocations WHERE"
-                + " reversed_at IS NULL GROUP BY invoice_id) p ON p.invoice_id=i.id WHERE"
+            "SELECT COALESCE(sum(i.amount_due-COALESCE(p.paid,0)),0) FROM "
+                + table("invoices")
+                + " i LEFT JOIN (SELECT invoice_id,sum(amount) paid FROM "
+                + table("payment_allocations")
+                + " WHERE reversed_at IS NULL GROUP BY invoice_id) p ON p.invoice_id=i.id WHERE"
                 + " i.owner_subject=? AND i.due_on<?",
             owner,
             today);
     var credit =
         sum(
-            "SELECT -COALESCE(sum(remaining_gross),0) FROM billing.usage_adjustments WHERE"
-                + " owner_subject=? AND remaining_gross<0",
+            "SELECT -COALESCE(sum(remaining_gross),0) FROM "
+                + table("usage_adjustments")
+                + " WHERE owner_subject=? AND remaining_gross<0",
             owner);
     var debit =
         sum(
-            "SELECT COALESCE(sum(remaining_gross),0) FROM billing.usage_adjustments WHERE"
-                + " owner_subject=? AND remaining_gross>0",
+            "SELECT COALESCE(sum(remaining_gross),0) FROM "
+                + table("usage_adjustments")
+                + " WHERE owner_subject=? AND remaining_gross>0",
             owner);
     var version =
         db
             .query(
-                "SELECT revision FROM billing.customer_accounts WHERE owner_subject=?",
+                "SELECT revision FROM " + table("customer_accounts") + " WHERE owner_subject=?",
                 (r, n) -> r.getLong(1),
                 owner)
             .stream()
@@ -297,8 +358,11 @@ public class JdbcLedgerRepository
   private List<Invoice> queryInvoices(String where, Object... args) {
     return db.query(
         "SELECT i.*,a.usage_net AS assessed_net,a.usage_vat AS assessed_vat,a.revision AS"
-            + " assessed_revision FROM billing.invoices i JOIN billing.invoice_usage_assessments a"
-            + " ON a.invoice_id=i.id WHERE "
+            + " assessed_revision FROM "
+            + table("invoices")
+            + " i JOIN "
+            + table("invoice_usage_assessments")
+            + " a ON a.invoice_id=i.id WHERE "
             + where,
         (r, n) -> {
           try {
@@ -327,7 +391,7 @@ public class JdbcLedgerRepository
 
   private List<Payment> queryPayments(String where, Object... args) {
     return db.query(
-        "SELECT * FROM billing.payments WHERE " + where,
+        "SELECT * FROM " + table("payments") + " WHERE " + where,
         (r, n) ->
             new Payment(
                 r.getObject("id", UUID.class),
@@ -354,9 +418,11 @@ public class JdbcLedgerRepository
 
   public List<AppliedAdjustment> appliedAdjustments(UUID invoice) {
     return db.query(
-        "SELECT a.id,a.source_invoice,a.net_delta,a.vat_delta,i.gross_applied FROM"
-            + " billing.invoice_adjustments i JOIN billing.usage_adjustments a ON"
-            + " a.id=i.adjustment_id WHERE i.invoice_id=? ORDER BY a.created_at,a.id",
+        "SELECT a.id,a.source_invoice,a.net_delta,a.vat_delta,i.gross_applied FROM "
+            + table("invoice_adjustments")
+            + " i JOIN "
+            + table("usage_adjustments")
+            + " a ON a.id=i.adjustment_id WHERE i.invoice_id=? ORDER BY a.created_at,a.id",
         (r, n) ->
             new AppliedAdjustment(
                 r.getObject(1, UUID.class),
@@ -367,10 +433,39 @@ public class JdbcLedgerRepository
         invoice);
   }
 
+  public Map<UUID, List<AppliedAdjustment>> appliedAdjustmentsByInvoice(
+      Collection<UUID> invoices) {
+    if (invoices == null || invoices.isEmpty()) return Map.of();
+    var ids = invoices.toArray(UUID[]::new);
+    var byInvoice = new HashMap<UUID, List<AppliedAdjustment>>();
+    for (var id : ids) byInvoice.put(id, new ArrayList<>());
+    db.query(
+        "SELECT i.invoice_id,a.id,a.source_invoice,a.net_delta,a.vat_delta,i.gross_applied FROM "
+            + table("invoice_adjustments")
+            + " i JOIN "
+            + table("usage_adjustments")
+            + " a ON a.id=i.adjustment_id WHERE i.invoice_id = ANY(?) ORDER BY a.created_at,a.id",
+        (PreparedStatement ps) -> ps.setArray(1, ps.getConnection().createArrayOf("uuid", ids)),
+        (rs, n) -> {
+          byInvoice
+              .computeIfAbsent(rs.getObject(1, UUID.class), ignored -> new ArrayList<>())
+              .add(
+                  new AppliedAdjustment(
+                      rs.getObject(2, UUID.class),
+                      rs.getObject(3, UUID.class),
+                      rs.getBigDecimal(4),
+                      rs.getBigDecimal(5),
+                      rs.getBigDecimal(6)));
+          return null;
+        });
+    return byInvoice;
+  }
+
   public List<Adjustment> adjustmentHistory(String owner, int page, int size) {
     return db.query(
-        "SELECT * FROM billing.usage_adjustments WHERE owner_subject=? ORDER BY created_at DESC,id"
-            + " LIMIT ? OFFSET ?",
+        "SELECT * FROM "
+            + table("usage_adjustments")
+            + " WHERE owner_subject=? ORDER BY created_at DESC,id LIMIT ? OFFSET ?",
         (r, n) ->
             new Adjustment(
                 r.getObject("id", UUID.class),
@@ -387,8 +482,12 @@ public class JdbcLedgerRepository
 
   public List<AllocationHistory> allocationHistory(String owner, int page, int size) {
     return db.query(
-        "SELECT a.* FROM billing.payment_allocations a JOIN billing.payments p ON p.id=a.payment_id"
-            + " WHERE p.owner_subject=? ORDER BY a.allocated_at DESC,a.id LIMIT ? OFFSET ?",
+        "SELECT a.* FROM "
+            + table("payment_allocations")
+            + " a JOIN "
+            + table("payments")
+            + " p ON p.id=a.payment_id WHERE p.owner_subject=? ORDER BY a.allocated_at DESC,a.id"
+            + " LIMIT ? OFFSET ?",
         (r, n) ->
             new AllocationHistory(
                 r.getObject("id", UUID.class),

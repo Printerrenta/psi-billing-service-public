@@ -22,7 +22,11 @@ public interface InvoiceStore {
 
   BigDecimal allocated(UUID invoice);
 
+  Map<UUID, BigDecimal> allocatedByInvoice(Collection<UUID> invoices);
+
   List<PaymentAllocator.Debt> debts(String owner);
 
   List<AppliedAdjustment> appliedAdjustments(UUID invoice);
+
+  Map<UUID, List<AppliedAdjustment>> appliedAdjustmentsByInvoice(Collection<UUID> invoices);
 }

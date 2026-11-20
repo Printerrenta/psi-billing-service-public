@@ -9,4 +9,8 @@ public interface ReadingProjectionStore {
       UUID contract, UUID readingId, LocalDate asOf, List<Long> counters, long streamRevision);
 
   List<UsageHistory.Reading> readings(UUID contract);
+
+  default OptionalLong streamRevision(UUID contract, LocalDate asOf) {
+    return OptionalLong.empty();
+  }
 }

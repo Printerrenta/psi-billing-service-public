@@ -9,9 +9,12 @@ import java.net.http.HttpResponse;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.security.oauth2.jwt.JwtException;
 
 public final class RemoteJwksSigningKeyProvider implements SigningKeyProvider {
+  private static final Logger LOG = LoggerFactory.getLogger(RemoteJwksSigningKeyProvider.class);
   private final URI uri;
   private final HttpClient http;
   private final Clock clock;
@@ -42,16 +45,36 @@ public final class RemoteJwksSigningKeyProvider implements SigningKeyProvider {
               HttpRequest.newBuilder(uri).timeout(Duration.ofSeconds(10)).GET().build(),
               HttpResponse.BodyHandlers.ofString());
       if (response.statusCode() != 200 || response.body().length() > 65536) {
+        if (keys != null) {
+          LOG.warn(
+              "JWKS refresh returned HTTP {} (length {}); keeping stale cached keys",
+              response.statusCode(),
+              response.body().length());
+          return;
+        }
+        LOG.warn(
+            "Initial JWKS fetch failed with HTTP {} (length {})",
+            response.statusCode(),
+            response.body().length());
         throw new JwtException("JWKS unavailable");
       }
       keys = JWKSet.parse(response.body());
       refreshed = now;
     } catch (InterruptedException error) {
       Thread.currentThread().interrupt();
+      if (keys != null) {
+        LOG.warn("JWKS refresh interrupted; keeping stale cached keys", error);
+        return;
+      }
       throw new JwtException("Signing keys unavailable", error);
     } catch (JwtException error) {
       throw error;
     } catch (Exception error) {
+      if (keys != null) {
+        LOG.warn("JWKS refresh failed; keeping stale cached keys", error);
+        return;
+      }
+      LOG.warn("Initial JWKS fetch failed", error);
       throw new JwtException("Signing keys unavailable", error);
     }
   }

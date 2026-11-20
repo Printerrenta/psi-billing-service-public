@@ -24,6 +24,12 @@ public final class UsageHistory {
     }
   }
 
+  public static final class NonMonotonicCountersException extends IllegalArgumentException {
+    public NonMonotonicCountersException(LocalDate asOf) {
+      super("Non-monotonic counters at " + asOf);
+    }
+  }
+
   private final Agreement agreement;
   private final List<Interval> intervals;
 
@@ -37,7 +43,13 @@ public final class UsageHistory {
       if (reading.asOf().isBefore(from) || reading.asOf().isAfter(agreement.usageEnd()))
         throw new IllegalArgumentException("Reading outside usage interval or duplicated date");
       var current = Quantities.counters(reading.counters());
-      result.add(new Interval(from, reading.asOf(), current.subtract(previous), "ACTUAL"));
+      Quantities delta;
+      try {
+        delta = current.subtract(previous);
+      } catch (IllegalArgumentException e) {
+        throw new NonMonotonicCountersException(reading.asOf());
+      }
+      result.add(new Interval(from, reading.asOf(), delta, "ACTUAL"));
       from = reading.asOf().plusDays(1);
       previous = current;
     }
